@@ -182,21 +182,22 @@ def synapse_discover() -> dict[str, Any]:
     return {"ran": True, "ok": p.returncode == 0, "detail": (p.stdout + p.stderr)[-2000:]}
 
 
-def agent_reconnect() -> dict[str, Any]:
+def agent_reconnect(token: str = "") -> dict[str, Any]:
     try:
-        r = httpx.post(f"{AGENT_URL}/reconnect", timeout=60)
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        r = httpx.post(f"{AGENT_URL}/reconnect", headers=headers, timeout=60)
         return r.json()
     except httpx.HTTPError as exc:
         return {"ok": False, "detail": f"could not reach the Doppel agent: {exc}"}
 
 
-def after_change(changes_endpoints: bool) -> dict[str, Any]:
+def after_change(changes_endpoints: bool, token: str = "") -> dict[str, Any]:
     """Restart billing-v2; rebuild the MCP server only when the API surface changed."""
     secs = V2_PROC.restart()
     out: dict[str, Any] = {"restarted": True, "healthy_after_s": secs}
     if changes_endpoints:
         out["synapse"] = synapse_discover()
-        out["agent"] = agent_reconnect()
+        out["agent"] = agent_reconnect(token)
         out["rebuild"] = "Endpoint changed: ran `synapse build --discover` and told Doppel to re-list tools."
     else:
         out["rebuild"] = ("Behaviour-only change: no Synapse rebuild needed, the MCP server calls the running "
@@ -206,7 +207,7 @@ def after_change(changes_endpoints: bool) -> dict[str, Any]:
 
 # ------------------------------------------------------------------------ mutations
 
-def apply_mutation(mid: str) -> dict[str, Any]:
+def apply_mutation(mid: str, token: str = "") -> dict[str, Any]:
     m: Mutation | None = BY_ID.get(mid)
     if not m:
         raise ControlError(f"unknown mutation {mid}")
@@ -224,7 +225,7 @@ def apply_mutation(mid: str) -> dict[str, Any]:
                                             "file": f"{V2_REL}/{m.file}", "line": line_no})
     save_state(state)
     return {"mutation": m.to_dict(), "commit": sha, "file": f"{V2_REL}/{m.file}", "line": line_no,
-            **after_change(m.changes_endpoints)}
+            **after_change(m.changes_endpoints, token)}
 
 
 # ----------------------------------------------------------- hand edit of one line
@@ -292,7 +293,7 @@ def typecheck(file: str, new_text: str) -> tuple[bool, str]:
     return p.returncode == 0, msg.strip()
 
 
-def apply_edit(file: str, name: str, new_source: str) -> dict[str, Any]:
+def apply_edit(file: str, name: str, new_source: str, token: str = "") -> dict[str, Any]:
     d = get_definition(file, name)
     old_lines = d["source"].splitlines()
     new_lines = new_source.rstrip("\n").splitlines()
@@ -320,7 +321,7 @@ def apply_edit(file: str, name: str, new_source: str) -> dict[str, Any]:
                                             "before": old_lines[idx].strip(), "after": new_lines[idx].strip()})
     save_state(state)
     return {"applied": True, "typecheck": "ok", "commit": sha, "file": f"{V2_REL}/src/{file}", "line": line_no,
-            "before": old_lines[idx], "after": new_lines[idx], **after_change(endpoint)}
+            "before": old_lines[idx], "after": new_lines[idx], **after_change(endpoint, token)}
 
 
 def status() -> dict[str, Any]:

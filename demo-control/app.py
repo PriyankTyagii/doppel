@@ -1,4 +1,4 @@
-"""Break-it-live demo control. A human operates this; the Doppel agent never calls it.
+"""Break-it-live demo control. A human operator (DOPPEL_ADMIN_EMAILS) uses it; the Doppel agent never calls it.
 
 Run: ../.venv/bin/uvicorn app:app --port 8090   (from demo-control/)
 It starts and owns billing-v2 on :8002.
@@ -8,25 +8,29 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import _paths  # noqa: F401
 import control
+from firebase_auth import allowed_origins, bearer, check_config, require_admin
 from mutations import MUTATIONS
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    check_config()
     if not control.V2_PROC.healthy() or control.V2_PROC.proc is None:
         await run_in_threadpool(control.V2_PROC.restart)
     yield
     control.V2_PROC.stop()
 
 
-app = FastAPI(title="Doppel demo control", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app = FastAPI(title="Doppel demo control", lifespan=lifespan, dependencies=[Depends(require_admin)])
+app.add_middleware(CORSMiddleware, allow_origins=allowed_origins(), allow_methods=["GET", "POST"],
+                   allow_headers=["Authorization", "Content-Type"])
 
 
 async def _do(fn, *args):
@@ -54,8 +58,8 @@ def mutations():
 
 
 @app.post("/mutations/{mid}/apply")
-async def apply(mid: str):
-    return await _do(control.apply_mutation, mid)
+async def apply(mid: str, request: Request):
+    return await _do(control.apply_mutation, mid, bearer(request))
 
 
 @app.get("/definitions")
@@ -86,8 +90,8 @@ async def edit_check(body: EditIn):
 
 
 @app.post("/edit/apply")
-async def edit_apply(body: EditIn):
-    return await _do(control.apply_edit, body.file, body.name, body.source)
+async def edit_apply(body: EditIn, request: Request):
+    return await _do(control.apply_edit, body.file, body.name, body.source, bearer(request))
 
 
 @app.post("/restore")
