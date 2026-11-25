@@ -11,6 +11,14 @@ results, and explains every mismatch from the code.
 - `demo-control/`: the break-it-live control a human operates. Mutates billing-v2 on stage. The agent never calls it.
 - `dashboard/`: React + Vite. Landing page, Firebase sign-in, parity dashboard, business impact, break-it panel, Present mode.
 
+## Screenshots
+
+![Landing page](docs/screenshots/landing.png)
+
+| Sign in | Mobile |
+|---|---|
+| <img src="docs/screenshots/sign-in.png" alt="Sign-in page" width="560"> | <img src="docs/screenshots/landing-mobile.png" alt="Landing page on a phone" width="220"> |
+
 ## Setup
 
 Needs Python 3.11 and Node 22+ (for `node:sqlite`).
