@@ -68,12 +68,12 @@ def test_fresh_breaks_from_one_changed_line_become_one_card():
     assert out["new:late_fee"]["merged_from"] == ["new:late_fee", "changed:late_fee"]
 
 
-def test_explainer_falls_back_when_no_model_is_configured(monkeypatch):
+def test_explainer_falls_back_when_no_key_is_configured(monkeypatch):
     import asyncio
 
     import explain
 
-    monkeypatch.setattr(explain, "MODEL", "")
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
     out = asyncio.run(explain.explain_groups([{"fields": ["late_fee"], "scenario_ids": ["S1"]}], {"S1": {}}, DIFF))
     assert out[0]["source"] == "fallback"
-    assert "ANTHROPIC_MODEL" in out[0]["explanation"]
+    assert "XAI_API_KEY" in out[0]["explanation"]
