@@ -26,7 +26,7 @@ agent:              ## Doppel agent on :8000 via the Synapse MCP servers in dopp
 agent-http:         ## Doppel agent on :8000 calling the REST APIs directly (development, before Synapse)
 	cd doppel-agent && DOPPEL_MODE=http ../.venv/bin/uvicorn server:app --port 8000
 
-dashboard:          ## dashboard on :5173
+dashboard:          ## dashboard on :5180
 	cd dashboard && npm run dev
 
 test:               ## unit and planted-difference tests (start their own apps on spare ports)

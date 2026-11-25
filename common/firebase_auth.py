@@ -107,5 +107,5 @@ def require_admin(user: User = Depends(require_user)) -> User:
 
 
 def allowed_origins() -> list[str]:
-    raw = os.environ.get("DOPPEL_ALLOWED_ORIGINS", "http://localhost:5173")
+    raw = os.environ.get("DOPPEL_ALLOWED_ORIGINS", "http://localhost:5180")
     return [o.strip() for o in raw.split(",") if o.strip()]

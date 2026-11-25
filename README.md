@@ -29,14 +29,18 @@ Fill in two files (both git-ignored):
 In the Firebase console, enable **Authentication → Sign-in method → Email/Password** and **Google**, and make sure
 `localhost` (and your deployed domain) is listed under **Authorized domains**.
 
+Use a Firebase project dedicated to Doppel. Users and sessions belong to a project, so sharing one with another app
+lets that app's users call Doppel's API too. Locally the dashboard runs on its own port (5180, `strictPort`) and uses
+a named Firebase app, so it never picks up a sign-in from another app on `localhost`.
+
 ```bash
 make v1             # terminal 1: billing-v1 on :8001
 make control        # terminal 2: demo-control on :8090 (starts billing-v2 on :8002)
 make agent-http     # terminal 3: Doppel agent on :8000 (use `make agent` once Synapse is set up)
-make dashboard      # terminal 4: http://localhost:5173
+make dashboard      # terminal 4: http://localhost:5180
 ```
 
-Open http://localhost:5173, sign in, and press **Run parity check**. The gauge fills live and stops at
+Open http://localhost:5180, sign in, and press **Run parity check**. The gauge fills live and stops at
 **82% (49/60 identical)**.
 
 ### Authentication
@@ -120,7 +124,7 @@ Judges can also type a scenario in plain English in the dashboard ("Kerala custo
 Before going on stage, with all four processes running (see Setup):
 
 1. `git status`: billing-v2 must have no uncommitted changes (demo-control refuses to start a demo otherwise).
-2. Sign in, open http://localhost:5173/present (arrow keys move between scenes).
+2. Sign in, open http://localhost:5180/present (arrow keys move between scenes).
 3. On the dashboard, press **Reset baseline** once. This forgets earlier runs and re-calls billing-v1, so the cards read
    "Mismatch found". Expect 82%. Leave it there.
 
@@ -192,6 +196,6 @@ the rule and the changed line, restores, and asserts parity returns to the previ
 | billing-v2 (owned by demo-control) | 8002 |
 | Doppel agent | 8000 |
 | demo-control | 8090 |
-| dashboard | 5173 |
+| dashboard | 5180 |
 
 Routes: `/` landing, `/login`, `/app` dashboard, `/present` presentation mode (the last two need sign-in).

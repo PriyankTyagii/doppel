@@ -18,4 +18,6 @@ export const missingConfig = Object.entries({
   .filter(([, v]) => !v)
   .map(([k]) => k);
 
-export const auth = missingConfig.length ? null : getAuth(initializeApp(config));
+// A named app keeps Doppel's persisted sign-in under its own storage key, separate from any other
+// app on the same origin that uses the default Firebase app.
+export const auth = missingConfig.length ? null : getAuth(initializeApp(config, "doppel"));
