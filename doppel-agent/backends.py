@@ -79,7 +79,7 @@ class HttpBackend:
         return self.tool_names()
 
     def tool_names(self) -> list[str]:
-        return list(LOGICAL_TOOLS)
+        return [t for t in LOGICAL_TOOLS if t != "get_invoice_breakdown"]
 
     async def call(self, tool: str, args: dict[str, Any]) -> Any:
         assert self._client, "backend not connected"

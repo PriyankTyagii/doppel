@@ -8,7 +8,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from backends import TOOL_DESCRIPTIONS
-from explain import MODEL
+import _paths  # noqa: F401
+import llm
 from scenarios import CUSTOMERS_BY_STATE, Scenario, Step
 
 ToolName = Literal["create_customer", "create_invoice", "get_invoice", "pay_invoice", "refund_invoice"]
@@ -50,24 +51,10 @@ already returns it (pay_invoice and refund_invoice return the invoice). Keep it 
 
 
 async def plan_scenario(text: str) -> tuple[Scenario, dict[str, Any]]:
-    import anthropic
-
-    if not MODEL:
-        raise ValueError("set ANTHROPIC_MODEL to use judge mode")
-    client = anthropic.AsyncAnthropic()
-    response = await client.beta.messages.parse(
-        model=MODEL,
-        max_tokens=16000,
-        betas=["server-side-fallback-2026-07-01"],
-        fallbacks="default",
-        output_config={"effort": "low"},
-        system=SYSTEM,
-        messages=[{"role": "user", "content": text}],
-        output_format=Plan,
-    )
-    if response.stop_reason == "refusal" or response.parsed_output is None:
-        raise ValueError(f"could not plan that scenario (stop_reason={response.stop_reason})")
-    plan = response.parsed_output
+    try:
+        plan = await llm.complete_json(SYSTEM, text, Plan, timeout=60)
+    except llm.LLMError as exc:
+        raise ValueError(f"could not plan that scenario: {exc}") from exc
     steps = []
     for s in plan.steps:
         try:

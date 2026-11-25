@@ -18,10 +18,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
+
+import _paths  # noqa: F401
+import llm
+from firebase_auth import User, allowed_origins, check_config, require_user
 
 from adhoc import plan_scenario
 from backends import make_backends
@@ -52,6 +56,7 @@ async def _connect() -> None:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    check_config()
     await _connect()
     yield
     for b in (S.v1, S.v2):
@@ -60,7 +65,8 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Doppel agent", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=allowed_origins(), allow_methods=["GET", "POST"],
+                   allow_headers=["Authorization", "Content-Type"])
 
 
 def _sse(event: dict[str, Any]) -> str:
@@ -69,10 +75,17 @@ def _sse(event: dict[str, Any]) -> str:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "mode": MODE, "tools": {"billing_v1": S.v1.tool_names(), "billing_v2": S.v2.tool_names()}}
+    return {"ok": True}
 
 
-@app.post("/reconnect")
+@app.get("/me")
+def me(user: User = Depends(require_user)):
+    return {"email": user.email, "email_verified": user.email_verified, "is_admin": user.is_admin,
+            "mode": MODE, "llm": {"provider": "xAI", "model": llm.model_name(), "configured": llm.configured()},
+            "tools": {"billing_v1": S.v1.tool_names(), "billing_v2": S.v2.tool_names()}}
+
+
+@app.post("/reconnect", dependencies=[Depends(require_user)])
 async def reconnect():
     async with S.lock:
         t1 = await S.v1.reconnect()
@@ -80,7 +93,7 @@ async def reconnect():
     return {"ok": True, "mode": MODE, "tools": {"billing_v1": t1, "billing_v2": t2}}
 
 
-@app.post("/run")
+@app.post("/run", dependencies=[Depends(require_user)])
 async def run(volume: int = DEFAULT_MONTHLY_VOLUME, explain: bool = True, fresh: bool = False):
     """Streams a run. ``fresh=true`` starts over: clears the billing-v1 cache and the run history."""
     if S.lock.locked():
@@ -102,7 +115,7 @@ async def run(volume: int = DEFAULT_MONTHLY_VOLUME, explain: bool = True, fresh:
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
-@app.get("/runs/{name}")
+@app.get("/runs/{name}", dependencies=[Depends(require_user)])
 def get_run(name: str):
     if name not in ("latest", "previous"):
         raise HTTPException(404, "unknown run")
@@ -112,7 +125,7 @@ def get_run(name: str):
     return slim_run(r)
 
 
-@app.get("/runs/latest/scenarios/{sid}")
+@app.get("/runs/latest/scenarios/{sid}", dependencies=[Depends(require_user)])
 def get_scenario(sid: str):
     r = load_run("latest")
     for res in (r or {}).get("results", []):
@@ -121,7 +134,7 @@ def get_scenario(sid: str):
     raise HTTPException(404, "scenario not found")
 
 
-@app.get("/report.md", response_class=PlainTextResponse)
+@app.get("/report.md", response_class=PlainTextResponse, dependencies=[Depends(require_user)])
 def report():
     r = load_run("latest")
     if not r:
@@ -134,7 +147,7 @@ class AdhocIn(BaseModel):
     text: str
 
 
-@app.post("/adhoc")
+@app.post("/adhoc", dependencies=[Depends(require_user)])
 async def adhoc(body: AdhocIn):
     try:
         scenario, plan = await plan_scenario(body.text)

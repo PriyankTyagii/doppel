@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
 import re
 import subprocess
 from pathlib import Path
@@ -16,11 +15,12 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+import _paths  # noqa: F401  (puts common/ on sys.path)
+import llm
+
 ROOT = Path(__file__).resolve().parent.parent
 V1_FILES = ["billing-v1/main.py"]
 V2_GLOB = "billing-v2/src/*.ts"
-# The model id is configuration, not code: set ANTHROPIC_MODEL in the environment.
-MODEL = os.environ.get("ANTHROPIC_MODEL", "")
 
 
 class Explanation(BaseModel):
@@ -177,31 +177,13 @@ def fallback_explanation(group: dict[str, Any], diff_text: str, reason: str) -> 
     }
 
 
-async def explain_group(client: Any, group: dict[str, Any], examples: list[dict[str, Any]], sources: str,
+async def explain_group(group: dict[str, Any], examples: list[dict[str, Any]], sources: str,
                         diff_text: str) -> dict[str, Any]:
-    import anthropic
-
     try:
-        response = await client.beta.messages.parse(
-            model=MODEL,
-            max_tokens=16000,
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            output_config={"effort": "medium"},
-            system=[
-                {"type": "text", "text": SYSTEM},
-                {"type": "text", "text": sources, "cache_control": {"type": "ephemeral"}},
-            ],
-            messages=[{"role": "user", "content": _group_prompt(group, examples, diff_text)}],
-            output_format=Explanation,
-        )
-    except anthropic.APIConnectionError as exc:
-        return fallback_explanation(group, diff_text, f"connection error: {exc}")
-    except anthropic.APIStatusError as exc:
-        return fallback_explanation(group, diff_text, f"API error {exc.status_code}")
-    if response.stop_reason == "refusal" or response.parsed_output is None:
-        return fallback_explanation(group, diff_text, f"stop_reason={response.stop_reason}")
-    out = response.parsed_output.model_dump()
+        exp = await llm.complete_json(f"{SYSTEM}\n\n{sources}", _group_prompt(group, examples, diff_text), Explanation)
+    except llm.LLMError as exc:
+        return fallback_explanation(group, diff_text, str(exc))
+    out = exp.model_dump()
     out["source"] = "model"
     return pin_changed_line(out, diff_text)
 
@@ -211,17 +193,9 @@ async def explain_groups(groups: list[dict[str, Any]], results_by_id: dict[str, 
     """Explains groups concurrently. Returns explanations in the same order as ``groups``."""
     if not groups:
         return []
-    if not MODEL:
-        return [fallback_explanation(g, diff_text, "ANTHROPIC_MODEL is not set") for g in groups]
-    try:
-        import anthropic
-
-        client = anthropic.AsyncAnthropic()
-    except Exception as exc:  # missing credentials etc.
-        return [fallback_explanation(g, diff_text, str(exc)) for g in groups]
+    if not llm.configured():
+        return [fallback_explanation(g, diff_text, "XAI_API_KEY is not set") for g in groups]
     sources = source_bundle()
-    tasks = []
-    for g in groups:
-        examples = [results_by_id[sid] for sid in g["scenario_ids"][:3]]
-        tasks.append(explain_group(client, g, examples, sources, diff_text))
+    tasks = [explain_group(g, [results_by_id[sid] for sid in g["scenario_ids"][:3]], sources, diff_text)
+             for g in groups]
     return list(await asyncio.gather(*tasks))
