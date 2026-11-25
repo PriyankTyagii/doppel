@@ -1,0 +1,14 @@
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+*.db
+.cache/
+doppel-agent/runs/
+doppel-agent/mcp.json
+demo-control/state.json
+dashboard/dist/
+.env
+.DS_Store
+billing-v2/.typecheck/
+demo-control/billing-v2.log
