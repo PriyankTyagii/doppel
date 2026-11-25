@@ -6,24 +6,49 @@ results, and explains every mismatch from the code.
 
 - `billing-v1/`: the legacy system. Python, FastAPI, SQLite, one big terse `main.py`. It is the reference.
 - `billing-v2/`: the "AI rewrite". TypeScript, Express, Node's built-in SQLite. Clean code, three planted bugs.
-- `doppel-agent/`: the agent. Scenario generator, runner, comparator, LLM explainer, judge mode, SSE API.
+- `doppel-agent/`: the agent. Scenario generator, runner, comparator, Grok explainer, judge mode, SSE API.
+- `common/`: shared Python modules: the Grok client and Firebase token verification.
 - `demo-control/`: the break-it-live control a human operates. Mutates billing-v2 on stage. The agent never calls it.
-- `dashboard/`: React + Vite. Parity gauge, mismatch cards, business impact, Break-it panel, Story mode.
+- `dashboard/`: React + Vite. Landing page, Firebase sign-in, parity dashboard, business impact, break-it panel, Present mode.
 
-## Setup (under 10 commands)
+## Setup
 
-Needs Python 3.11, Node 22+ (for `node:sqlite`), plus `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL` (the model id the
-explainer and judge mode use) in the environment.
+Needs Python 3.11 and Node 22+ (for `node:sqlite`).
 
 ```bash
-make install        # venv + npm packages
+make install        # venv, npm packages, and .env / dashboard/.env.local from the templates
+```
+
+Fill in two files (both git-ignored):
+
+- `.env`: `XAI_API_KEY` (Grok, from console.x.ai), `FIREBASE_PROJECT_ID`, and `DOPPEL_ADMIN_EMAILS` (verified emails
+  allowed to use break-it-live).
+- `dashboard/.env.local`: the Firebase web app config (`VITE_FIREBASE_API_KEY`, `..._AUTH_DOMAIN`, `..._PROJECT_ID`,
+  `..._APP_ID`) from Project settings → Your apps.
+
+In the Firebase console, enable **Authentication → Sign-in method → Email/Password** and **Google**, and make sure
+`localhost` (and your deployed domain) is listed under **Authorized domains**.
+
+```bash
 make v1             # terminal 1: billing-v1 on :8001
 make control        # terminal 2: demo-control on :8090 (starts billing-v2 on :8002)
 make agent-http     # terminal 3: Doppel agent on :8000 (use `make agent` once Synapse is set up)
 make dashboard      # terminal 4: http://localhost:5173
 ```
 
-Press **"Doppel, are these two the same?"** The gauge fills live and stops at **82% (49/60 identical)**.
+Open http://localhost:5173, sign in, and press **Run parity check**. The gauge fills live and stops at
+**82% (49/60 identical)**.
+
+### Authentication
+
+- The dashboard signs in with Firebase (Google or email and password; new email accounts get a verification email).
+- Every agent endpoint except `/health` requires a Firebase ID token (`Authorization: Bearer …`). The services
+  verify it against Google's public keys for `FIREBASE_PROJECT_ID`: signature, audience, issuer and expiry.
+- demo-control (break-it-live) accepts only users whose **verified** email is in `DOPPEL_ADMIN_EMAILS`. Other users
+  don't see the Break it tab, and its API answers 403.
+- CORS allows only `DOPPEL_ALLOWED_ORIGINS`.
+- The services refuse to start without `FIREBASE_PROJECT_ID`. `DOPPEL_AUTH_DISABLED=1` turns auth off for local
+  tests and the CLI only.
 
 Command-line alternative: `cd doppel-agent && ../.venv/bin/python cli.py run --mode http --report`.
 
@@ -66,7 +91,7 @@ Check `GET http://localhost:8000/health` to see what was mapped.
 4. `pipeline.py` compares with the previous run and marks every mismatch **NEW**, **FIXED** or **UNCHANGED**
    (a known mismatch whose v2 values changed counts as NEW). Fresh breaks are grouped apart from known ones.
 5. `explain.py` sends each new group, the numbered source of both systems and **the git diff of billing-v2
-   since the last run** to the model named in `ANTHROPIC_MODEL` (Anthropic API, structured output). It returns
+   since the last run** to Grok (xAI API, `XAI_MODEL`, schema-constrained JSON output). It returns
    the cause, `file:line` in each system, a one-line explanation, a suggested fix for a human, and the changed
    line, with its line number taken from the diff hunk. Known groups reuse the last explanation. Doppel never
    writes to either repo.
@@ -95,20 +120,20 @@ Judges can also type a scenario in plain English in the dashboard ("Kerala custo
 Before going on stage, with all four processes running (see Setup):
 
 1. `git status`: billing-v2 must have no uncommitted changes (demo-control refuses to start a demo otherwise).
-2. Open http://localhost:5173/?story=1 (Story mode; arrow keys move between scenes).
-3. Press **Fresh start** once (scene 2). This forgets earlier runs and re-calls billing-v1, so the cards read
+2. Sign in, open http://localhost:5173/present (arrow keys move between scenes).
+3. On the dashboard, press **Reset baseline** once. This forgets earlier runs and re-calls billing-v1, so the cards read
    "Mismatch found". Expect 82%. Leave it there.
 
-On stage (Story mode scenes):
+On stage (Present mode scenes):
 
 | Scene | Click / say |
 |---|---|
 | 1. Headline | "If you switched today: 18% of bills wrong, ~₹1,98,683/month mis-billed and ~₹6,11,800/month GST misreported (projected)." |
-| 2. Parity | Gauge at 82%. Optionally press **Re-run** to show it fill live (about 6s). |
-| 3. Mismatches | Three cards. Headline: **Sunday due-date late-fee waiver missing in v2**, `billing-v1/main.py:229`. |
+| 2. Parity | Gauge at 82%. Optionally press **Run parity check** to show it fill live (about 6s). |
+| 3. Findings | Three cards. Headline: **Sunday due-date late-fee waiver missing in v2**, `billing-v1/main.py:229`. |
 | 4. Break it | Ask a judge to pick one of the five buttons. Wait for "billing-v2 restarted, healthy after ~0.5s" and "Behaviour-only change: no Synapse rebuild needed". |
-| 5. Re-run | Press **Re-run**. A highlighted **New since last run** card names the changed line, e.g. `billing-v2/src/tax.ts:4 export const LATE_FEE_PCT = 2.5;`. The gauge shows the drop vs the previous run. |
-| 6. Report | **Download the signed-off parity report** (Markdown). |
+| 5. Re-run | Press **Run parity check**. A highlighted **New since last run** card names the changed line, e.g. `billing-v2/src/tax.ts:4 export const LATE_FEE_PCT = 2.5;`. The gauge shows the drop vs the previous run. |
+| 6. Report | **Download the parity report** (Markdown). |
 
 What each mutation does to the score (from the acceptance run):
 
@@ -132,7 +157,8 @@ Behaviour-only edits skip the rebuild and say so.
 
 **The original live fix (planted bug 2):** edit `lateFee` in `billing-v2/src/tax.ts` to skip Sunday due dates,
 optionally add `GET /invoices/:id/breakdown` in `server.ts`, run `synapse build --discover` in `billing-v2/`,
-then `curl -X POST localhost:8000/reconnect` and press **Re-run**. The Sunday card moves to "fixed".
+then restart the agent (or call `POST /reconnect` with your token) and run the check. The Sunday finding moves
+to "fixed".
 
 ### Restore
 
@@ -141,7 +167,7 @@ then `curl -X POST localhost:8000/reconnect` and press **Re-run**. The Sunday ca
 
 This discards demo edits in billing-v2 only, switches the repo back from the `live-demo` branch to the branch
 the demo started on, forces `billing-v2/` back to the pre-demo commit, restarts billing-v2 and waits for
-`/health`. Then press **Re-run**: parity returns to 82%. Restore also discards hand edits you made in billing-v2
+`/health`. Then run the check again: parity returns to 82%. Restore also discards hand edits you made in billing-v2
 during the demo (including a live fix), so commit those first if you want to keep them.
 
 If something goes wrong: `git switch main && git checkout -- billing-v2 && git branch -D live-demo`, then
@@ -150,9 +176,9 @@ restart `make control`.
 ## Tests
 
 ```bash
-make test         # 35 tests: v1 rules, comparator, explainer helpers, planted differences, 82% mix
+make test         # 48 tests: v1 rules, comparator, explainer helpers, planted differences, 82% mix
 make shape        # v1 and v2 return identical JSON shapes on all endpoints
-make acceptance   # needs v1, control and agent running; makes real model calls (~1.5 min)
+make acceptance   # needs v1, control and agent started with DOPPEL_AUTH_DISABLED=1; real Grok calls (~1.5 min)
 ```
 
 The acceptance test applies each of the five mutations, re-runs, asserts a NEW mismatch whose explanation names
@@ -167,3 +193,5 @@ the rule and the changed line, restores, and asserts parity returns to the previ
 | Doppel agent | 8000 |
 | demo-control | 8090 |
 | dashboard | 5173 |
+
+Routes: `/` landing, `/login`, `/app` dashboard, `/present` presentation mode (the last two need sign-in).

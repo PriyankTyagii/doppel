@@ -12,3 +12,4 @@ dashboard/dist/
 .DS_Store
 billing-v2/.typecheck/
 demo-control/billing-v2.log
+.env.local
