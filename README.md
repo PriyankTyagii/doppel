@@ -6,8 +6,8 @@ results, and explains every mismatch from the code.
 
 - `billing-v1/`: the legacy system. Python, FastAPI, SQLite, one big terse `main.py`. It is the reference.
 - `billing-v2/`: the "AI rewrite". TypeScript, Express, Node's built-in SQLite. Clean code, three planted bugs.
-- `doppel-agent/`: the agent. Scenario generator, runner, comparator, Grok explainer, judge mode, SSE API.
-- `common/`: shared Python modules: the Grok client and Firebase token verification.
+- `doppel-agent/`: the agent. Scenario generator, runner, comparator, LLM explainer, judge mode, SSE API.
+- `common/`: shared Python modules: the Groq client and Firebase token verification.
 - `demo-control/`: the break-it-live control a human operates. Mutates billing-v2 on stage. The agent never calls it.
 - `dashboard/`: React + Vite. Landing page, Firebase sign-in, parity dashboard, business impact, break-it panel, Present mode.
 
@@ -21,7 +21,7 @@ make install        # venv, npm packages, and .env / dashboard/.env.local from t
 
 Fill in two files (both git-ignored):
 
-- `.env`: `XAI_API_KEY` (Grok, from console.x.ai), `FIREBASE_PROJECT_ID`, and `DOPPEL_ADMIN_EMAILS` (verified emails
+- `.env`: `GROQ_API_KEY` (from console.groq.com), `FIREBASE_PROJECT_ID`, and `DOPPEL_ADMIN_EMAILS` (verified emails
   allowed to use break-it-live).
 - `dashboard/.env.local`: the Firebase web app config (`VITE_FIREBASE_API_KEY`, `..._AUTH_DOMAIN`, `..._PROJECT_ID`,
   `..._APP_ID`) from Project settings → Your apps.
@@ -95,9 +95,12 @@ Check `GET http://localhost:8000/health` to see what was mapped.
 4. `pipeline.py` compares with the previous run and marks every mismatch **NEW**, **FIXED** or **UNCHANGED**
    (a known mismatch whose v2 values changed counts as NEW). Fresh breaks are grouped apart from known ones.
 5. `explain.py` sends each new group, the numbered source of both systems and **the git diff of billing-v2
-   since the last run** to Grok (xAI API, `XAI_MODEL`, schema-constrained JSON output). It returns
+   since the last run** to Groq (`GROQ_MODEL`, default `openai/gpt-oss-120b`, schema-constrained JSON output). It returns
    the cause, `file:line` in each system, a one-line explanation, a suggested fix for a human, and the changed
-   line, with its line number taken from the diff hunk. Known groups reuse the last explanation. Doppel never
+   line, with its line number taken from the diff hunk. To fit Groq's free tier (8,000 tokens a minute), all new
+   groups go in one request, and only the code the scenarios ran is sent: the HTTP handlers they called plus the
+   functions and constants those use (`code_slice.py`), with original line numbers. On a rate limit it waits as long
+   as Groq asks (up to a minute) and retries once. Known groups reuse the last explanation. Doppel never
    writes to either repo.
 6. Business impact per group: invoices affected, rupees mis-billed (over vs under), GST misreported, and a
    projection to a monthly volume (default 1,00,000 invoices, editable in the dashboard). The projection is
@@ -182,7 +185,7 @@ restart `make control`.
 ```bash
 make test         # 48 tests: v1 rules, comparator, explainer helpers, planted differences, 82% mix
 make shape        # v1 and v2 return identical JSON shapes on all endpoints
-make acceptance   # needs v1, control and agent started with DOPPEL_AUTH_DISABLED=1; real Grok calls (~1.5 min)
+make acceptance   # needs v1, control and agent started with DOPPEL_AUTH_DISABLED=1; real Groq calls (~1.5 min)
 ```
 
 The acceptance test applies each of the five mutations, re-runs, asserts a NEW mismatch whose explanation names
