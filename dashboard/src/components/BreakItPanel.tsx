@@ -8,12 +8,12 @@ import {
   listDefinitions,
   listMutations,
   restoreDemo,
-} from "../api";
+} from "../lib/api";
 import type { ControlState, Definition, Mutation } from "../types";
 
 interface Props {
   onChanged: () => void;
-  big?: boolean;
+  large?: boolean;
 }
 
 interface Outcome {
@@ -32,7 +32,7 @@ function describe(res: Record<string, unknown>): string[] {
   return out;
 }
 
-export function BreakItPanel({ onChanged, big }: Props) {
+export function BreakItPanel({ onChanged, large }: Props) {
   const [state, setState] = useState<ControlState | null>(null);
   const [mutations, setMutations] = useState<Mutation[]>([]);
   const [defs, setDefs] = useState<Definition[]>([]);
@@ -41,16 +41,16 @@ export function BreakItPanel({ onChanged, big }: Props) {
   const [source, setSource] = useState("");
   const [busy, setBusy] = useState("");
   const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [offline, setOffline] = useState(false);
+  const [offline, setOffline] = useState("");
 
   const refresh = useCallback(async () => {
     try {
       const [s, m] = await Promise.all([controlState(), listMutations()]);
       setState(s);
       setMutations(m);
-      setOffline(false);
-    } catch {
-      setOffline(true);
+      setOffline("");
+    } catch (e) {
+      setOffline((e as Error).message);
     }
   }, []);
 
@@ -92,24 +92,22 @@ export function BreakItPanel({ onChanged, big }: Props) {
 
   if (offline) {
     return (
-      <section className={`panel break ${big ? "panel-big" : ""}`}>
-        <h2>Break it live</h2>
-        <p className="error">demo-control is not running on :8090. Start it with `make control` (see README).</p>
-      </section>
+      <div className={`tool ${large ? "tool-large" : ""}`}>
+        <p className="form-error">{offline}</p>
+      </div>
     );
   }
 
   return (
-    <section className={`panel break ${big ? "panel-big" : ""}`}>
-      <div className="panel-head">
-        <h2>Break it live</h2>
+    <div className={`tool ${large ? "tool-large" : ""}`}>
+      <div className="tool-head">
+        <p className="muted">Each change is one committed, reversible edit to billing-v2, which then restarts. billing-v1 is never touched.</p>
         <div className="status-line">
           <span className={`dot ${state?.v2_healthy ? "dot-ok" : "dot-bad"}`} /> billing-v2 {state?.v2_healthy ? "healthy" : "down"} · branch{" "}
           <code>{state?.branch}</code>
           {state?.demo_active && <> · from <code>{state.pre_demo_commit}</code></>}
         </div>
       </div>
-      <p className="muted">Each button makes one committed, reversible edit to billing-v2 and restarts it. billing-v1 is never touched.</p>
 
       <div className="mutations">
         {mutations.map((m) => (
@@ -180,6 +178,6 @@ export function BreakItPanel({ onChanged, big }: Props) {
           {outcome.ok && <p>Now press Re-run: billing-v1 results are cached, so only billing-v2 is called.</p>}
         </div>
       )}
-    </section>
+    </div>
   );
 }

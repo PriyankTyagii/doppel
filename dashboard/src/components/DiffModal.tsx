@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getScenario } from "../api";
+import { getScenario } from "../lib/api";
 import type { FullResult } from "../types";
 
 interface Props {
@@ -57,13 +57,13 @@ export function DiffModal({ id, preloaded, onClose }: Props) {
         <header className="modal-head">
           <h2>
             {data ? `${data.id}: ${data.summary}` : id}
-            {data && <span className={`badge ${data.match ? "badge-ok" : "badge-new"}`}>{data.match ? "identical" : "differs"}</span>}
+            {data && <span className={`pill ${data.match ? "pill-good" : "pill-bad"}`}>{data.match ? "identical" : "differs"}</span>}
           </h2>
           <button className="btn" onClick={onClose}>
             Close
           </button>
         </header>
-        {error && <p className="error">{error}</p>}
+        {error && <p className="form-error">{error}</p>}
         {data && (
           <>
             <div className="steps">
