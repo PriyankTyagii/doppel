@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "billing_v1": {
+      "command": "REPLACE_WITH_THE_COMMAND_SYNAPSE_PRINTS",
+      "args": ["REPLACE", "WITH", "ARGS"],
+      "env": { "SYNAPSE_API_KEY": "${SYNAPSE_API_KEY}" },
+      "doppel_tools": {}
+    },
+    "billing_v2": {
+      "url": "REPLACE_WITH_THE_URL_SYNAPSE_PRINTS",
+      "headers": { "Authorization": "Bearer ${SYNAPSE_API_KEY}" },
+      "doppel_tools": {}
+    }
+  }
+}
