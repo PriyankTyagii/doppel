@@ -134,3 +134,12 @@ export interface Definition {
   end: number;
   source?: string;
 }
+
+export interface Me {
+  email: string;
+  email_verified: boolean;
+  is_admin: boolean;
+  mode: "http" | "mcp";
+  llm: { provider: string; model: string; configured: boolean };
+  tools: Record<string, string[]>;
+}
