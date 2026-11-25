@@ -90,6 +90,8 @@ def test_mutation_is_caught_explained_and_restored(baseline, mutation):
         assert run["counts"]["NEW"] > 0
 
         def names_rule(g: dict) -> bool:
+            if (g.get("explanation") or {}).get("source") != "model":
+                return False  # a fallback quotes the diff but explains nothing
             text = explanation_text(g)
             return all(any(k in text for k in alts) for alts in mutation.expect_keywords)
 

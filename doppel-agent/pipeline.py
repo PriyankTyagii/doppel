@@ -194,7 +194,8 @@ async def run_parity(
     for g in groups.values():
         sig = g["key"].split(":", 1)[1]
         reuse = next((prev_groups[k] for k in (f"known:{sig}", f"new:{sig}", f"changed:{sig}") if k in prev_groups), None)
-        if g["status"] == "UNCHANGED" and reuse and reuse.get("explanation"):
+        # Reuse only real explanations; a fallback (model unavailable) is retried on the next run.
+        if g["status"] == "UNCHANGED" and reuse and (reuse.get("explanation") or {}).get("source") == "model":
             g["explanation"] = reuse["explanation"]
         else:
             to_explain.append(g)
