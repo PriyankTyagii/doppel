@@ -1,4 +1,4 @@
-"""Grok request schema and Firebase ID-token verification (no network)."""
+"""LLM request schema and Firebase ID-token verification (no network)."""
 
 import sys
 import time

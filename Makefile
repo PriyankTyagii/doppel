@@ -1,6 +1,6 @@
 PY := .venv/bin/python
 
-# Backend settings (XAI_API_KEY, FIREBASE_PROJECT_ID, ...) from .env if present.
+# Backend settings (GROQ_API_KEY, FIREBASE_PROJECT_ID, ...) from .env if present.
 -include .env
 export
 

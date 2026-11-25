@@ -95,7 +95,7 @@ export function Dashboard() {
           </p>
         )}
         {s.me && !s.me.llm.configured && (
-          <p className="alert">Explanations are off: set XAI_API_KEY for the agent to trace mismatches to code.</p>
+          <p className="alert">Explanations are off: set GROQ_API_KEY for the agent to trace mismatches to code.</p>
         )}
         {s.stale && !s.running && (
           <p className="alert alert-new">billing-v2 changed. Run the check to see what it broke or fixed.</p>

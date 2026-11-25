@@ -81,7 +81,7 @@ def health():
 @app.get("/me")
 def me(user: User = Depends(require_user)):
     return {"email": user.email, "email_verified": user.email_verified, "is_admin": user.is_admin,
-            "mode": MODE, "llm": {"provider": "xAI", "model": llm.model_name(), "configured": llm.configured()},
+            "mode": MODE, "llm": {"provider": "Groq", "model": llm.model_name(), "configured": llm.configured()},
             "tools": {"billing_v1": S.v1.tool_names(), "billing_v2": S.v2.tool_names()}}
 
 
@@ -165,7 +165,8 @@ async def adhoc(body: AdhocIn):
         prev = load_run("latest") or {}
         # Reuse a known explanation when this matches an existing mismatch group.
         for g in prev.get("groups", []):
-            if g.get("fields") == group["fields"] and g.get("explanation") and g.get("status") != "FIXED":
+            if (g.get("fields") == group["fields"] and (g.get("explanation") or {}).get("source") == "model"
+                    and g.get("status") != "FIXED"):
                 explanation = {**g["explanation"], "reused_from": g["key"]}
                 break
         if explanation is None:
